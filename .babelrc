@@ -1,0 +1,9 @@
+{
+  "presets": [
+    ["@babel/preset-env", {
+      "useBuiltIns": "usage",
+      "targets": "ie >= 11",
+      "corejs": 2
+    }]
+  ]  
+}
