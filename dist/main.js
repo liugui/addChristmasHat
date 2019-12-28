@@ -6530,84 +6530,135 @@
   }
   //# sourceMappingURL=resizeResults.js.map
 
-  /**
-   * 获取 K 值
-   * @param {*} a
-   * @param {*} b
-   */
+  var maxSize = 400;
+  var canvas = document.querySelector('.canvas');
+  var ctx = canvas.getContext('2d'); // �����Ĵ�С������Ҫ����ͼƬ�������Ĵ�С�����ź��ͼƬ��С����һ��
 
-  var getK = function getK(a, b) {
-    return (a.x - b.x) / (a.y - b.y);
+  var displaySize = {
+    width: 0,
+    height: 0
   };
-  /**
-   * 获取两点之间距离
-   * @param {*} a
-   * @param {*} b
-   */
 
+  var setDisplaySize = function setDisplaySize(imgSize) {
+    var imgRatio = imgSize.width / imgSize.height;
+
+    if (imgSize.width <= maxSize && imgSize.height <= maxSize) {
+      displaySize.width = imgSize.width;
+      displaySize.height = imgSize.height;
+    } else {
+      if (imgRatio >= 1) {
+        displaySize.width = maxSize;
+        displaySize.height = maxSize / imgRatio;
+      } else {
+        displaySize.height = maxSize;
+        displaySize.width = maxSize * imgRatio;
+      }
+    }
+
+    canvas.width = displaySize.width;
+    canvas.height = displaySize.height;
+  };
+
+  var setWarning = function setWarning(text) {
+    document.querySelector('.warning').innerText = text;
+  };
 
   var getDistance = function getDistance(a, b) {
     return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
-  };
-  /**
-   * 已知 K，d, 点，求另一个点
-   * @param {*} k 值
-   * @param {*} d 距离
-   * @param {*} point 一个基础点
-   */
-
-
-  var getPos = function getPos(k, d, point) {
-    // 取 y 变小的那一边
-    var y = -Math.sqrt(d * d / (1 + k * k)) + point.y;
-    var x = k * (y - point.y) + point.x;
-    return {
-      x: x,
-      y: y
-    };
-  };
-  /**
-   * 获取头顶的坐标
-   * @param {*} midPos 眉心点坐标
-   * @param {*} jawPos 下巴底点坐标
-   */
-
-
-  var getHeadPos = function getHeadPos(midPos, jawPos) {
-    // 获取线的 k 值
-    var k = getK(midPos, jawPos); // 获取眉心到下颌的距离
-
-    var distanceOfEye2Jaw = getDistance(midPos, jawPos);
-    return getPos(k, distanceOfEye2Jaw / 2, midPos);
   };
 
   var getFaceWith = function getFaceWith(outlinePoints) {
     return getDistance(outlinePoints[0], outlinePoints[outlinePoints.length - 1]);
   };
 
-  var getFaceRadian = function getFaceRadian(jawPos, midPointOfEyebrows) {
-    return Math.PI - Math.atan2(jawPos.x - midPointOfEyebrows.x, jawPos.y - midPointOfEyebrows.y);
-  };
-
   function getImg(src, callback) {
     var img = new Image();
-    img.setAttribute('crossOrigin', 'anonymous');
     img.src = src;
 
     img.onload = function () {
       return callback(img);
     };
+
+    img.onerror = function () {
+      setWarning('ͼƬ����ʧ��');
+    };
+  } // ����ü�ĺ��°����ĵ�����꣬���㷢�������ĵ�����
+
+
+  var getHairCenter = function getHairCenter(eyeCenter, jawCenter) {
+    var hairCenter = {
+      x: 0,
+      y: 0
+    };
+    hairCenter.x = (3 * eyeCenter.x - jawCenter.x) / 2;
+    hairCenter.y = (3 * eyeCenter.y - jawCenter.y) / 2;
+    return hairCenter;
+  };
+
+  function addHatMain(_x) {
+    return _addHatMain.apply(this, arguments);
   }
 
-  function init() {
-    return _init.apply(this, arguments);
+  function _addHatMain() {
+    _addHatMain = _asyncToGenerator(
+    /*#__PURE__*/
+    regeneratorRuntime.mark(function _callee2(img) {
+      var detection, resizedDetection, landmarks, jawOutline, leftEyeBrow, leftEyeBrowRight, rightEyeBrow, rightEyeBrowLeft, eyeCenter, jawCenter, hairCenter, faceWidth, angle;
+      return regeneratorRuntime.wrap(function _callee2$(_context2) {
+        while (1) {
+          switch (_context2.prev = _context2.next) {
+            case 0:
+              _context2.next = 2;
+              return detectSingleFace(img).withFaceLandmarks();
+
+            case 2:
+              detection = _context2.sent;
+              resizedDetection = resizeResults(detection, displaySize);
+              landmarks = resizedDetection.landmarks;
+              jawOutline = landmarks.getJawOutline(); // ��������
+
+              leftEyeBrow = landmarks.getLeftEyeBrow(); // ��üë
+
+              leftEyeBrowRight = leftEyeBrow[leftEyeBrow.length - 1]; // ��üë���ұߵĵ�
+
+              rightEyeBrow = landmarks.getRightEyeBrow(); // ��üë
+
+              rightEyeBrowLeft = rightEyeBrow[0]; // ��üë����ߵĵ�
+              // ü������
+
+              eyeCenter = {
+                x: (leftEyeBrowRight.x + rightEyeBrowLeft.x) / 2,
+                y: (leftEyeBrowRight.y + rightEyeBrowLeft.y) / 2
+              }; // �°͵�����
+
+              jawCenter = jawOutline[Math.floor(jawOutline.length / 2)];
+              hairCenter = getHairCenter(eyeCenter, jawCenter);
+              faceWidth = getFaceWith(jawOutline);
+              angle = -Math.PI / 2 + Math.atan2(jawCenter.y - eyeCenter.y, jawCenter.x - eyeCenter.x);
+              ctx.translate(hairCenter.x, hairCenter.y);
+              ctx.rotate(angle);
+              getImg('./hat.png', function (hat) {
+                var hatImgWidth = faceWidth * 12 / 8;
+                var hatImgHeight = hatImgWidth / hat.width * hat.height;
+                ctx.drawImage(hat, 0, 0, hat.width, hat.height, -(hatImgWidth * 9 / 11 / 2), -hatImgHeight / 2, hatImgWidth, hatImgHeight);
+              });
+
+            case 18:
+            case "end":
+              return _context2.stop();
+          }
+        }
+      }, _callee2);
+    }));
+    return _addHatMain.apply(this, arguments);
   }
 
-  function _init() {
-    _init = _asyncToGenerator(
+  var loadResource =
+  /*#__PURE__*/
+  function () {
+    var _ref = _asyncToGenerator(
     /*#__PURE__*/
     regeneratorRuntime.mark(function _callee() {
-      var input, displaySize, detection, resizedDetection, landmarks, jawOutline, leftEyeBrow, rightEyeBrow, midPos, jawPos, headPos, canvas, ctx, faceWidth, picSize, angle, hat;
       return regeneratorRuntime.wrap(function _callee$(_context) {
         while (1) {
           switch (_context.prev = _context.next) {
@@ -6620,72 +6671,59 @@
               return loadFaceLandmarkModel('/weights');
 
             case 4:
-              input = document.querySelector('#img');
-              displaySize = {
-                width: input.width,
-                height: input.height
-              }; // 人脸识别的结果对象
+              document.querySelector('.loading').style.display = 'none';
 
-              _context.next = 8;
-              return detectSingleFace(input).withFaceLandmarks();
-
-            case 8:
-              detection = _context.sent;
-              resizedDetection = resizeResults(detection, displaySize); // 面部五官识别的结果对象
-
-              landmarks = resizedDetection.landmarks;
-              jawOutline = landmarks.getJawOutline(); // 下巴轮廓
-
-              leftEyeBrow = landmarks.getLeftEyeBrow()[2]; // 左眉毛
-
-              rightEyeBrow = landmarks.getRightEyeBrow()[2]; // 右眉毛
-
-              midPos = {
-                x: (leftEyeBrow.x + rightEyeBrow.x) / 2,
-                y: (leftEyeBrow.y + rightEyeBrow.y) / 2
-              };
-              jawPos = jawOutline[8];
-              console.log(midPos);
-              console.log(jawPos);
-              headPos = getHeadPos(midPos, jawPos);
-              console.log(headPos);
-              canvas = document.querySelector('#canvas');
-              ctx = canvas.getContext('2d');
-              canvas.width = input.width;
-              canvas.height = input.height;
-              input.style.display = 'none';
-              canvas.style.display = 'block';
-              ctx.drawImage(input, 0, 0, input.width, input.height, 0, 0, input.width, input.height); // faceapi.draw.drawDetections(canvas, resizedDetection);
-              // faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
-
-              faceWidth = getFaceWith(jawOutline);
-              picSize = {
-                width: faceWidth / 0.8,
-                height: faceWidth * 0.74 / 0.8
-              };
-              angle = getFaceRadian(midPos, jawPos);
-              hat = getImg('./hat.png', function (img) {
-                // 保存画布
-                ctx.save(); // 画布原点移动到画帽子的地方
-
-                ctx.translate(headPos.x, headPos.y); // 旋转画布到特定角度
-
-                ctx.rotate(angle); // 我的圣诞帽子实际佩戴部分长度只有 0.75 倍整个图片长度
-
-                ctx.drawImage(img, -picSize.width / 2, -picSize.height / 2, picSize.width, picSize.height); // 还原画布
-
-                ctx.restore();
-              });
-
-            case 31:
+            case 5:
             case "end":
               return _context.stop();
           }
         }
       }, _callee);
     }));
-    return _init.apply(this, arguments);
-  }
-  init();
+
+    return function loadResource() {
+      return _ref.apply(this, arguments);
+    };
+  }();
+
+  var drawImageMain = function drawImageMain(img) {
+    setDisplaySize({
+      width: img.width,
+      height: img.height
+    }); // ��ԭʼͼƬ
+
+    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, displaySize.width, displaySize.height);
+    ctx.save(); // ��ñ��
+
+    addHatMain(img);
+  }; // ��������ʶ�������Դ
+
+
+  loadResource();
+  document.querySelector('.file-input').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+
+    if (file.type.indexOf('image') > -1) {
+      document.querySelector('.download-btn').setAttribute('disabled', 'true');
+      document.querySelector('.file-input').setAttribute('disabled', 'true');
+      getImg(URL.createObjectURL(file), function (img) {
+        drawImageMain(img);
+        document.querySelector('.download-btn').removeAttribute('disabled');
+        document.querySelector('.file-input').removeAttribute('disabled');
+      });
+    } else {
+      setWarning('���ϴ���ȷ��ʽ��ͼƬ');
+    }
+  });
+  document.querySelector('.download-btn').addEventListener('click', function (e) {
+    if (displaySize.width && displaySize.height) {
+      var dom = document.createElement("a");
+      dom.href = canvas.toDataURL("image/png");
+      dom.download = new Date().getTime() + ".png";
+      dom.click();
+    } else {
+      setWarning('�����ϴ�ͼƬ');
+    }
+  });
 
 })));

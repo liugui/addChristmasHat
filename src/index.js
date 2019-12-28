@@ -1,115 +1,133 @@
 import * as faceapi from 'face-api.js';
 
-/**
- * èŽ·å– K å€¼
- * @param {*} a
- * @param {*} b
- */
-const getK = (a, b) => (a.x - b.x) / (a.y - b.y)
+// ÉèÖÃÍ¼Æ¬µÄ×î´ó³ß´ç£¬³¬´óÊ±½«ÒÔ´Ë³ß´ç×÷ÎªËõ·Å»ù×¼
+var maxSize = 400;
 
-/**
- * èŽ·å–ä¸¤ç‚¹ä¹‹é—´è·ç¦»
- * @param {*} a
- * @param {*} b
- */
+var canvas = document.querySelector('.canvas');
+var ctx = canvas.getContext('2d');
+
+// »­²¼µÄ´óÐ¡¡£ÓÉÓÚÒª±£´æÍ¼Æ¬£¬»­²¼µÄ´óÐ¡¸úËõ·ÅºóµÄÍ¼Æ¬´óÐ¡±£³ÖÒ»ÖÂ
+var displaySize = {
+    width: 0,
+    height: 0
+};
+
+const setDisplaySize = imgSize => {
+    const imgRatio = imgSize.width / imgSize.height;
+    if (imgSize.width <= maxSize && imgSize.height <= maxSize) {
+        displaySize.width = imgSize.width;
+        displaySize.height = imgSize.height;
+    } else {
+        if (imgRatio >= 1) {
+            displaySize.width = maxSize;
+            displaySize.height = maxSize / imgRatio;
+        } else {
+            displaySize.height = maxSize;
+            displaySize.width = maxSize * imgRatio;
+        }
+    }
+    canvas.width = displaySize.width;
+    canvas.height = displaySize.height;
+};
+
+const setWarning = text => {
+    document.querySelector('.warning').innerText = text;
+}
+
 const getDistance = (a, b) => Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
-
-/**
- * å·²çŸ¥ Kï¼Œd, ç‚¹ï¼Œæ±‚å¦ä¸€ä¸ªç‚¹
- * @param {*} k å€¼
- * @param {*} d è·ç¦»
- * @param {*} point ä¸€ä¸ªåŸºç¡€ç‚¹
- */
-const getPos = (k, d, point) => {
-  // å– y å˜å°çš„é‚£ä¸€è¾¹
-  let y = -Math.sqrt((d * d) / (1 + k * k)) + point.y;
-  let x = k * (y - point.y) + point.x;
-  return { x, y };
-};
-
-/**
- * èŽ·å–å¤´é¡¶çš„åæ ‡
- * @param {*} midPos çœ‰å¿ƒç‚¹åæ ‡
- * @param {*} jawPos ä¸‹å·´åº•ç‚¹åæ ‡
- */
-const getHeadPos = (midPos, jawPos) => {
-  // èŽ·å–çº¿çš„ k å€¼
-  const k = getK(midPos, jawPos);
-  // èŽ·å–çœ‰å¿ƒåˆ°ä¸‹é¢Œçš„è·ç¦»
-  const distanceOfEye2Jaw = getDistance(midPos, jawPos);
-  return getPos(k, distanceOfEye2Jaw / 2, midPos);
-};
 
 const getFaceWith = outlinePoints => getDistance(outlinePoints[0], outlinePoints[outlinePoints.length - 1]);
 
-const getFaceRadian = (jawPos, midPointOfEyebrows) =>
-    Math.PI - Math.atan2(jawPos.x - midPointOfEyebrows.x, jawPos.y - midPointOfEyebrows.y);
-
 function getImg(src, callback) {
   const img = new Image();
-  img.setAttribute('crossOrigin', 'anonymous');
   img.src = src;
   img.onload = () => callback(img);
+  img.onerror = () => {
+      setWarning('Í¼Æ¬ÏÂÔØÊ§°Ü');
+  }
 }
 
-async function init() {
-    await faceapi.nets.ssdMobilenetv1.load('/weights');
-    await faceapi.loadFaceLandmarkModel('/weights');
-    const input = document.querySelector('#img');
-    const displaySize = {
-        width: input.width,
-        height: input.height
-    };
-    // äººè„¸è¯†åˆ«çš„ç»“æžœå¯¹è±¡
-    const detection = await faceapi.detectSingleFace(input).withFaceLandmarks();
+// ¸ù¾ÝÃ¼ÐÄºÍÏÂ°ÍÖÐÐÄµãµÄ×ø±ê£¬¼ÆËã·¢¼ÊÏßÖÐÐÄµÄ×ø±ê
+const getHairCenter = (eyeCenter, jawCenter) => {
+    let hairCenter = {x: 0, y: 0};
+    hairCenter.x = (3 * eyeCenter.x - jawCenter.x) / 2;
+    hairCenter.y = (3 * eyeCenter.y - jawCenter.y) / 2;
+    return hairCenter;
+}
+
+async function addHatMain(img) {
+    const detection = await faceapi.detectSingleFace(img).withFaceLandmarks();
     const resizedDetection = faceapi.resizeResults(detection, displaySize);
-    // é¢éƒ¨äº”å®˜è¯†åˆ«çš„ç»“æžœå¯¹è±¡
+
     const landmarks = resizedDetection.landmarks;
-
-    const jawOutline = landmarks.getJawOutline();  // ä¸‹å·´è½®å»“
-
-    const leftEyeBrow = landmarks.getLeftEyeBrow()[2];  // å·¦çœ‰æ¯›
-    const rightEyeBrow = landmarks.getRightEyeBrow()[2];  // å³çœ‰æ¯›
-
-    const midPos = {
-        x: (leftEyeBrow.x + rightEyeBrow.x) / 2, 
-        y: (leftEyeBrow.y + rightEyeBrow.y) / 2
+    const jawOutline = landmarks.getJawOutline();  // Á³²¿ÂÖÀª
+    const leftEyeBrow = landmarks.getLeftEyeBrow();  // ×óÃ¼Ã«
+    const leftEyeBrowRight = leftEyeBrow[leftEyeBrow.length - 1]; // ×óÃ¼Ã«×îÓÒ±ßµÄµã
+    const rightEyeBrow = landmarks.getRightEyeBrow();  // ÓÒÃ¼Ã«
+    const rightEyeBrowLeft = rightEyeBrow[0]; // ÓÒÃ¼Ã«×î×ó±ßµÄµã
+    // Ã¼ÐÄ×ø±ê
+    const eyeCenter = {
+        x: (leftEyeBrowRight.x + rightEyeBrowLeft.x) / 2,
+        y: (leftEyeBrowRight.y + rightEyeBrowLeft.y) / 2
     };
-    const jawPos = jawOutline[8];
-
-    console.log(midPos);
-    console.log(jawPos);
-
-    const headPos = getHeadPos(midPos, jawPos);
-    console.log(headPos);
-
-    const canvas = document.querySelector('#canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = input.width;
-    canvas.height = input.height;
-    input.style.display = 'none';
-    canvas.style.display = 'block';
-
-    ctx.drawImage(input, 0, 0, input.width, input.height, 0, 0, input.width, input.height);
-
-    // faceapi.draw.drawDetections(canvas, resizedDetection);
-    // faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
+    // ÏÂ°ÍµÄ×ø±ê
+    const jawCenter = jawOutline[Math.floor(jawOutline.length / 2)];
+    const hairCenter = getHairCenter(eyeCenter, jawCenter);
     const faceWidth = getFaceWith(jawOutline);
-    const picSize = { width: faceWidth / 0.8, height: (faceWidth * 0.74) / 0.8 };
-    const angle = getFaceRadian(midPos, jawPos);
-
-    const hat = getImg('./hat.png', img => {
-        // ä¿å­˜ç”»å¸ƒ
-        ctx.save();
-        // ç”»å¸ƒåŽŸç‚¹ç§»åŠ¨åˆ°ç”»å¸½å­çš„åœ°æ–¹
-        ctx.translate(headPos.x, headPos.y);
-        // æ—‹è½¬ç”»å¸ƒåˆ°ç‰¹å®šè§’åº¦
-        ctx.rotate(angle);
-        // æˆ‘çš„åœ£è¯žå¸½å­å®žé™…ä½©æˆ´éƒ¨åˆ†é•¿åº¦åªæœ‰ 0.75 å€æ•´ä¸ªå›¾ç‰‡é•¿åº¦
-        ctx.drawImage(img, - picSize.width / 2, - picSize.height / 2, picSize.width, picSize.height)
-        // è¿˜åŽŸç”»å¸ƒ
-        ctx.restore();
+    
+    const angle = - Math.PI / 2 + Math.atan2(jawCenter.y - eyeCenter.y, jawCenter.x - eyeCenter.x);
+    ctx.translate(hairCenter.x, hairCenter.y);
+    ctx.rotate(angle);
+    getImg('./hat.png', hat => {
+        const hatImgWidth = faceWidth * 12 / 8;
+        const hatImgHeight = hatImgWidth / hat.width * hat.height;
+        ctx.drawImage(hat, 0, 0, hat.width, hat.height, - (hatImgWidth * 9 / 11 / 2), - hatImgHeight / 2, hatImgWidth, hatImgHeight);
     });
 };
 
-init();
+const loadResource = async () => {
+    await faceapi.nets.ssdMobilenetv1.load('/weights');
+    await faceapi.loadFaceLandmarkModel('/weights');
+    document.querySelector('.loading').style.display = 'none';
+}
+
+const drawImageMain = img => {
+    setDisplaySize({
+        width: img.width,
+        height: img.height
+    });
+    // »­Ô­Ê¼Í¼Æ¬
+    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, displaySize.width, displaySize.height);
+    ctx.save();
+    // »­Ã±×Ó
+    addHatMain(img);
+}
+
+// ¼ÓÔØÈËÁ³Ê¶±ðÏà¹Ø×ÊÔ´
+loadResource();
+
+document.querySelector('.file-input').addEventListener('change', function(e) {
+    let file = e.target.files && e.target.files[0];
+    if (file.type.indexOf('image') > -1) {
+        document.querySelector('.download-btn').setAttribute('disabled', 'true');
+        document.querySelector('.file-input').setAttribute('disabled', 'true');
+        getImg(URL.createObjectURL(file), img => {
+            drawImageMain(img);
+            document.querySelector('.download-btn').removeAttribute('disabled');
+            document.querySelector('.file-input').removeAttribute('disabled');
+        });
+    } else {
+        setWarning('ÇëÉÏ´«ÕýÈ·¸ñÊ½µÄÍ¼Æ¬');
+    }
+});
+
+document.querySelector('.download-btn').addEventListener('click', function(e) {
+    if (displaySize.width && displaySize.height) {
+        let dom = document.createElement("a");
+        dom.href = canvas.toDataURL("image/png");
+        dom.download = new Date().getTime() + ".png";
+        dom.click();
+    } else {
+        setWarning('ÇëÏÈÉÏ´«Í¼Æ¬');
+    }
+})
