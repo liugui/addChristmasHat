@@ -1,5 +1,9 @@
 基于face-api的头像加圣诞帽小应用
 
+## 效果
+
+![使用前](./test.jpeg) -> ![使用后](./test-result.png)
+
 ## 使用
 ```
 npm i
